@@ -3,7 +3,7 @@ import { AddCommand } from '../commands/add-command'
 import { START_MENU, SUB_MENU } from '../../config/bot-menus'
 import { ManageCommand } from '../commands/manage-command'
 import { DeleteCommand } from '../commands/delete-command'
-import { userExpectingDonation, userExpectingGroupId, userExpectingWalletAddress } from '../../constants/flags'
+import { userExpectingDonation, userExpectingGroupId, userExpectingWalletAddress, userExpectingCustomValue } from '../../constants/flags'
 import { MyWalletCommand } from '../commands/mywallet-command'
 import { GeneralMessages } from '../messages/general-messages'
 import { UpgradePlanCommand } from '../commands/upgrade-plan-command'
@@ -145,11 +145,106 @@ export class CallbackQueryHandler {
             parse_mode: 'HTML',
           })
           break
+        case 'filter_all':
+          await this.updateWalletFilter(message, 'all')
+          break
+        case 'filter_buys':
+          await this.updateWalletFilter(message, 'buys')
+          break
+        case 'filter_sells':
+          await this.updateWalletFilter(message, 'sells')
+          break
+        case 'filter_high_value':
+          const HIGH_VALUE_MENU: InlineKeyboardMarkup = {
+            inline_keyboard: [
+              [
+                { text: '> 1 SOL', callback_data: 'high_value_1' },
+                { text: '> 5 SOL', callback_data: 'high_value_5' }
+              ],
+              [
+                { text: '> 10 SOL', callback_data: 'high_value_10' },
+                { text: 'Custom', callback_data: 'high_value_custom' }
+              ],
+              [{ text: 'Back', callback_data: 'back_to_filters' }]
+            ]
+          }
+          
+          this.bot.editMessageText(
+            '🔥 Select minimum transaction value to track:',
+            {
+              chat_id: message.chat.id,
+              message_id: message.message_id,
+              reply_markup: HIGH_VALUE_MENU
+            }
+          )
+          break
+        case 'high_value_1':
+          await this.updateWalletFilter(message, 'high_value:1')
+          break
+        case 'high_value_5':
+          await this.updateWalletFilter(message, 'high_value:5')
+          break
+        case 'high_value_10':
+          await this.updateWalletFilter(message, 'high_value:10')
+          break
+        case 'high_value_custom':
+          // Ask user for custom value
+          this.bot.editMessageText(
+            '💰 Enter minimum transaction value in SOL:',
+            {
+              chat_id: message.chat.id,
+              message_id: message.message_id
+            }
+          )
+          // Set flag to expect custom value
+          userExpectingCustomValue[message.chat.id] = true
+          break
         default:
           responseText = 'Unknown command.'
       }
 
       // this.bot.sendMessage(chatId, responseText);
     })
+  }
+
+  private async updateWalletFilter(message: TelegramBot.Message, filter: string) {
+    const chatId = message.chat.id
+    const userId = chatId.toString()
+    
+    await this.prismaUserRepository.updateFilter(userId, filter)
+    
+    let filterText = ''
+    if (filter.startsWith('high_value:')) {
+      const value = filter.split(':')[1]
+      filterText = `transactions above ${value} SOL`
+    } else {
+      filterText = `${filter} transactions`
+    }
+    
+    this.bot.editMessageText(
+      `✅ Filter updated! You will now receive notifications for ${filterText}.`,
+      {
+        chat_id: chatId,
+        message_id: message.message_id,
+        reply_markup: SUB_MENU
+      }
+    )
+  }
+
+  private async handleCustomValue(message: TelegramBot.Message) {
+    const text = message.text
+    if (!text) return
+
+    const value = parseFloat(text)
+    if (isNaN(value) || value <= 0) {
+      this.bot.sendMessage(
+        message.chat.id,
+        '❌ Please enter a valid number greater than 0'
+      )
+      return
+    }
+
+    await this.updateWalletFilter(message, `high_value:${value}`)
+    userExpectingCustomValue[message.chat.id] = false
   }
 }

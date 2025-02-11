@@ -1,0 +1,53 @@
+# 创建文件：D:\chickendinner\handi-cat_wallet-tracker\start.ps1
+Set-Content -Path "D:\chickendinner\handi-cat_wallet-tracker\start.ps1" -Value @'
+# 启动脚本
+
+Write-Host "正在启动 Handi Cat Wallet Tracker..." -ForegroundColor Green
+
+# 1. 启动 ngrok（在新窗口中）
+$ngrokProcess = Start-Process powershell -ArgumentList "ngrok http 3001" -PassThru
+
+# 等待 ngrok 启动并获取 URL
+Start-Sleep -Seconds 5
+$ngrokUrl = (Invoke-RestMethod http://localhost:4040/api/tunnels).tunnels[0].public_url
+
+Write-Host "Ngrok URL: $ngrokUrl" -ForegroundColor Cyan
+
+# 2. 更新 .env 文件中的 APP_URL
+$envContent = Get-Content .env -Raw
+$envContent = $envContent -replace '(APP_URL=).*', "APP_URL=$ngrokUrl/webhook/telegram"
+Set-Content .env -Value $envContent
+
+# 3. 启动 Pulse 服务（在新窗口中）
+$pulseProcess = Start-Process powershell -ArgumentList "cd pulse-starter; npm start" -PassThru
+
+# 4. 启动主应用（在新窗口中）
+$mainProcess = Start-Process powershell -ArgumentList "pnpm start" -PassThru
+
+# 5. 启动 Prisma Studio（在新窗口中）
+$studioProcess = Start-Process powershell -ArgumentList "cd pulse-starter; npx prisma studio" -PassThru
+
+Write-Host @"
+
+所有服务已启动：
+1. Ngrok: $ngrokUrl
+2. Pulse 服务: 正在运行
+3. 主应用: 正在运行
+4. Prisma Studio: http://localhost:5555
+
+按 Ctrl+C 停止所有服务
+"@ -ForegroundColor Green
+
+# 等待用户按 Ctrl+C
+try {
+    while ($true) {
+        Start-Sleep -Seconds 1
+    }
+} finally {
+    # 清理进程
+    $ngrokProcess, $pulseProcess, $mainProcess, $studioProcess | ForEach-Object {
+        if ($_) { Stop-Process -Id $_.Id -Force }
+    }
+    Write-Host "`n所有服务已停止" -ForegroundColor Yellow
+}
+'@

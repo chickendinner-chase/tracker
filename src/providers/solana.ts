@@ -13,7 +13,11 @@ const QUICKNODE_NETWORK = process.env.QUICKNODE_API_KEY ?? ''
 // If you are going to use Handi Cat locally you can just use SOLANA_NETWORK for all connections
 // and will work fine as long you dont track too many wallets
 export class RpcConnectionManager {
-  static connections = [new Connection(CHAINSTACK_NETWORK, 'confirmed'), new Connection(QUICKNODE_NETWORK, 'confirmed')]
+  static connections = [
+    new Connection(SOLANA_NETWORK, 'confirmed'),
+    // new Connection(CHAINSTACK_NETWORK, 'confirmed'),  // 暂时注释掉
+    // new Connection(QUICKNODE_NETWORK, 'confirmed'),   // 暂时注释掉
+  ]
 
   static logConnection = new Connection(HELIUS_NETWORK, 'processed')
 
