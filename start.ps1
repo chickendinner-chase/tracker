@@ -2,6 +2,15 @@
 
 Write-Host "Starting Handi Cat Wallet Tracker..." -ForegroundColor Green
 
+# 0. Run database migrations
+Write-Host "Running database migrations..." -ForegroundColor Yellow
+$migrationProcess = Start-Process powershell -ArgumentList "cd pulse-starter; npx prisma migrate deploy" -Wait -NoNewWindow -PassThru
+if ($migrationProcess.ExitCode -ne 0) {
+    Write-Host "Migration failed! Please check your database configuration." -ForegroundColor Red
+    exit 1
+}
+Write-Host "Database migrations completed successfully!" -ForegroundColor Green
+
 # 1. Start ngrok
 $ngrokProcess = Start-Process powershell -ArgumentList "ngrok http 3001" -PassThru
 

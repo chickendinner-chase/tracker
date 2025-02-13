@@ -1,13 +1,30 @@
 # env
 .env
+.env.*
+!.env.example
 
 # dependencies
 node_modules/
+dist/
+build/
+
+# logs
+*.log
+logs/
 
 # system
 .DS_Store
+Thumbs.db
 
-dist
-node_modules
-.env
+# IDE
+.vscode/
+.idea/
+
+# database
+*.db
 database_backup.json
+
+# secrets
+secrets/
+private/
+*.key
