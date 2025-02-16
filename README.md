@@ -1,138 +1,128 @@
-<!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
+# Solana 钱包资产分析工具 v0.5
 
-<a id="readme-top"></a>
+一个专注于 Solana 链上资产分析的命令行工具，提供精确的代币估值和实时价格追踪。
 
-<!-- PROJECT LOGO -->
-<br />
-<div align="center">
-  <a href="https://github.com/DracoR22/handi-cat_wallet-tracker">
-    <img src="showcase/handi-cat.jpg" alt="Logo" width="80" height="80">
-  </a>
+## 主要特性
 
-  <h3 align="center">🐱 Handi Cat | Wallet Tracker</h3>
+### 1. 资产发现
+- 支持多钱包地址批量分析
+- 自动发现所有代币账户（包括 SPL 代币和原生 SOL）
+- 智能合并同类代币账户
+- 支持 Associated Token Account (ATA) 识别
 
-  <p align="center">
-    Track any Solana transaction in Real-Time
-    <br />
-    <br />
-    <a href="https://t.me/handi_cat_bot"><strong>Use the Telegram bot -></strong></a>
-  </p>
-</div>
+### 2. 价格追踪
+- 实时获取 Jupiter 价格数据
+- 多级价格可信度评估（high/medium/low）
+- 智能过滤异常价格数据
+- 支持自定义价格来源配置
 
-<!-- ABOUT THE PROJECT -->
+### 3. 资产估值
+- 精确的代币数量计算（自动处理 decimals）
+- 实时市场价值评估
+- 完整的计算过程展示
+- 按价值排序的 TOP 50 代币展示
 
-## About The Project
+## 快速开始
 
-[![Product Name Screen Shot][product-screenshot]](https://t.me/handi_cat_bot)
+### 1. 配置环境
+```bash
+# 复制环境配置模板
+cp .env.example .env
 
-Handi Cat is a Telegram bot that can track any Solana wallet in real time, providing relevant information
-of each transaction made in Pump.fun, Raydium and Jupiter including transaction hash, tokens and amount swapped, price of the token in SOL, token market cap and much more.
-
-## Features
-
-- 📈 Real-time tracking of any transaction
-- 🔍 Detects Pump.fun, Raydium and Jupiter transactions
-- 💰 Gets SOL price of the token swapped
-- 📊 Get tokens market cap at the time swapped
-- 💰 Gets token amount and supply percentage owned by each tracked wallet
-- 🤖 Each transaction message includes links to popular Solana trading bots to quickly buy the token
-- 🔗 Each transaction provides links to Photon, GMGN and Dex Screener to quickly see the token chart
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Built With
-
-- 🌐 Node.JS
-- 📘 TypeScript
-- 📊 Prisma and Prisma Pulse
-- 🪙 Solana Web3.js
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- GETTING STARTED -->
-
-## Getting Started
-
-Follow these simple steps to setup Handi Cat locally on your machine
-
-### Prerequisites
-
-**Node version 14.x**
-
-### Steps
-
-1. Clone the repo
-
-   ```sh
-   git clone https://github.com/DracoR22/handi-cat_wallet-tracker.git
-   ```
-
-2. Install NPM packages
-
-   ```sh
-   pnpm install
-   ```
-
-3. Rename `.env.example` file to `.env`
-
-4. Go to `supabase.com` and create a free database
-
-5. In your `Supabase` dashboard go to `Project Settings` -> `Database` paste the connection string into `SUPABASE_DATABASE_URL` environment variable. Make sure you activate the `pooler connection` and set the
-   port to `5432` your connection string should look like this: `postgresql://postgres.[PROJECT_URL]:[YOUR-PASSWORD]@aws-0-[YOUR-DB-REGION].pooler.supabase.com:5432/postgres?pgbouncer=true
-`
-
-6. Now you need to [Setup Prisma Pulse with a Supabase database](https://medium.com/@dilsharahasanka/prisma-pulse-hands-on-guide-b220954b3245) for real time database logs
-
-7. After you get your `Prisma Pulse` API key, paste it in the `PULSE_API_KEY` environment variable
-
-8. Create a new `Telegram Bot` using `Bot Father` and get your `BOT_TOKEN`, then paste it in the environment variable
-
-9. Run migrate command to push the database schemas and generate all types
-
-```sh
-  pnpm db:migrate
+# 编辑配置文件，填入必要的 API 密钥
+vim .env
 ```
 
-10. Now you have to setup an rpc provider in `src/providers/solana.ts`, you can change all NETWORKS to `SOLANA_NETWORK` if you dont have one
-
-11. Start the bot
-
-```sh
-  pnpm start
+### 2. 配置钱包
+```yaml
+# config/wallets.yaml
+wallets:
+  - name: "主钱包"
+    address: "你的钱包地址"
+  - name: "测试钱包"
+    address: "其他钱包地址"
 ```
 
-11. That's it! now your local version of Handi Cat is ready, you can also fill the other environment variables to setup an RPC of your choice
+### 3. 运行分析
+```bash
+# 分析指定钱包
+go run main.go -wallet YOUR_WALLET_ADDRESS
 
-<p align="center"><img src="./showcase/cli-pic.png" width="95%" alt="Screenshot of bot succesfully running"/></>
+# 分析配置文件中的所有钱包
+go run main.go -all
+```
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+## 输出示例
 
-<!-- CONTACT -->
+```
+代币持仓报告
+生成时间: 2024-02-16 02:41:04
+----------------------------------------
 
-## Contact
+排名  |代币        |           总持有量   |        总价值 (USD)|  可信度   |
+----------------------------------------------------------------------
+1     |SOL         |              123.45  |             $2,469 |    high   |
+      |Mint: So11111111111111111111111111111111111111112      |
+      |数量: 123.45000000                                      |
+      |价格: $20.00000000                                      |
+      |计算: 123.45000000 * $20.00000000 = $2,469.000000      |
+----------------------------------------------------------------------
+```
 
-<!-- [@your_twitter](https://twitter.com/your_username)  --> - rdraco039@gmail.com
+## 技术细节
 
-My solana wallet for the struggles - `5EVQsbVErvJruJvi3v8i3sDSy58GUnGfewwRb8pJk8N1`
+### 1. 数据来源
+- 钱包数据：Helius DAS API
+- 价格数据：Jupiter Price API v2
+- 备选数据：CoinMarketCap API（可配置）
 
-Project Link: [https://github.com/DracoR22/handi-cat_wallet-tracker](https://github.com/DracoR22/handi-cat_wallet-tracker)
+### 2. 计算规则
+- 代币数量：原始数量 / (10 ^ decimals)
+- 代币价值：实际数量 * 当前价格
+- 价格可信度：基于流动性和价格来源评估
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+### 3. 筛选机制
+- 自动过滤空账户
+- 过滤可信度为 "low" 的价格数据
+- 过滤异常价格（超出合理范围）
+- 保留价值排名前 50 的代币
 
-<!-- MARKDOWN LINKS & IMAGES -->
-<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
+## 环境要求
 
-[contributors-shield]: https://img.shields.io/github/contributors/othneildrew/Best-README-Template.svg?style=for-the-badge
-[contributors-url]: https://github.com/othneildrew/Best-README-Template/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/othneildrew/Best-README-Template.svg?style=for-the-badge
-[forks-url]: https://github.com/othneildrew/Best-README-Template/network/members
-[stars-shield]: https://img.shields.io/github/stars/othneildrew/Best-README-Template.svg?style=for-the-badge
-[stars-url]: https://github.com/othneildrew/Best-README-Template/stargazers
-[issues-shield]: https://img.shields.io/github/issues/othneildrew/Best-README-Template.svg?style=for-the-badge
-[issues-url]: https://github.com/othneildrew/Best-README-Template/issues
-[license-shield]: https://img.shields.io/github/license/othneildrew/Best-README-Template.svg?style=for-the-badge
-[license-url]: https://github.com/othneildrew/Best-README-Template/blob/master/LICENSE.txt
-[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
-[linkedin-url]: https://linkedin.com/in/othneildrew
-[telegram-bot]: https://img.shields.io/badge/Telegram-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white
-[product-screenshot]: showcase/notifications-new.png
+- Go 1.21+
+- Helius API Key（用于获取代币数据）
+- 互联网连接（用于实时价格查询）
+
+## 配置说明
+
+### 必需配置（.env）
+```env
+HELIUS_RPC_ENDPOINT=YOUR_ENDPOINT
+HELIUS_API_KEY=YOUR_API_KEY
+```
+
+### 可选配置
+```env
+CMC_API_KEY=YOUR_CMC_API_KEY  # 用于备选价格数据
+```
+
+## 注意事项
+
+1. 价格数据
+   - 优先使用 Jupiter 提供的价格
+   - 仅使用可信度为 high/medium 的数据
+   - 定期刷新以保证实时性
+
+2. 资产计算
+   - 自动处理代币精度
+   - 展示完整计算过程
+   - 保留合适的小数位数
+
+3. 安全性
+   - 仅读取钱包数据，不执行任何交易
+   - 敏感配置信息本地存储
+   - API 密钥严格保密
+
+## 许可证
+
+MIT License 
