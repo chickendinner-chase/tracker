@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"sort"
@@ -487,14 +486,6 @@ func UpdateTokenPrices(tokens map[string][]*TokenData) ([]*TokenData, error) {
 		log.Printf("   - Mint地址: %s", mintAddr)
 		log.Printf("   - 原始数量: %.8f", token.Amount)
 		log.Printf("   - 小数位数: %d", token.Decimals)
-
-		// 计算实际数量
-		actualAmount := token.Amount
-		if token.Decimals > 0 {
-			divisor := math.Pow10(int(token.Decimals))
-			actualAmount = token.Amount / divisor
-			log.Printf("   - 实际数量: %.8f (除以 10^%d)", actualAmount, token.Decimals)
-		}
 
 		if price, ok := jupiterPrices[mintAddr]; ok {
 			if price.Price <= 0 || price.ConfidenceLevel == "low" {

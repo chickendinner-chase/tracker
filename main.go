@@ -1,18 +1,31 @@
 package main
 
 import (
+	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
+	"wallet-tracker/config"
 	"wallet-tracker/internal/tracker"
 
 	"github.com/joho/godotenv"
 )
 
-const targetWalletAddr = "MfDuWeqSHEqTFVYZ7LoexgAK9dxk7cy4DFJWjWMGVWa"
-
 func main() {
+	// 解析命令行参数
+	var (
+		walletAddr string
+		configFile string
+		processAll bool
+	)
+	flag.StringVar(&walletAddr, "wallet", "", "要分析的钱包地址")
+	flag.StringVar(&configFile, "config", "config/wallets.yaml", "钱包配置文件路径")
+	flag.BoolVar(&processAll, "all", false, "是否处理配置文件中的所有钱包")
+	flag.Parse()
+
 	// 配置日志输出到文件
 	logFile, err := os.OpenFile("wallet-tracker.log", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0666)
 	if err != nil {
@@ -31,7 +44,31 @@ func main() {
 		log.Fatal(err)
 	}
 
-	tokens, err := fetchTokens()
+	// 加载配置文件
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		log.Fatal("加载配置文件失败:", err)
+	}
+
+	var walletAddrs []string
+	if processAll {
+		// 使用配置文件中的所有钱包
+		walletAddrs = cfg.GetWalletAddresses()
+		log.Printf("从配置文件加载了 %d 个钱包地址", len(walletAddrs))
+	} else if walletAddr != "" {
+		// 使用命令行指定的钱包
+		walletAddrs = []string{walletAddr}
+		log.Printf("使用命令行指定的钱包地址: %s", walletAddr)
+	} else {
+		log.Fatal("请使用 -wallet 指定钱包地址或使用 -all 处理所有配置的钱包")
+	}
+
+	// 创建上下文，设置超时
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	// 获取所有钱包的代币
+	tokens, err := fetchTokens(ctx, walletAddrs, cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -58,22 +95,11 @@ func initEnv() error {
 	return nil
 }
 
-func fetchTokens() (map[string][]*tracker.TokenData, error) {
-	log.Printf("处理钱包地址: %s", targetWalletAddr)
+func fetchTokens(ctx context.Context, walletAddrs []string, cfg *config.Config) (map[string][]*tracker.TokenData, error) {
+	log.Printf("开始处理 %d 个钱包地址...", len(walletAddrs))
 
-	// 获取原始代币列表
-	tokenList, err := tracker.FetchWalletTokens(targetWalletAddr, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("获取代币列表失败: %v", err)
-	}
-
-	// 转换为 map[string][]*TokenData
-	tokenMap := make(map[string][]*tracker.TokenData)
-	for _, token := range tokenList {
-		tokenMap[token.MintAddr] = append(tokenMap[token.MintAddr], token)
-	}
-
-	return tokenMap, nil
+	// 使用 FetchMultipleWalletsTokens 获取所有钱包的代币
+	return tracker.FetchMultipleWalletsTokens(ctx, walletAddrs, nil, cfg)
 }
 
 func updateTokenPrices(tokens map[string][]*tracker.TokenData) ([]*tracker.TokenData, error) {

@@ -3,7 +3,6 @@ package tracker
 import (
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"sort"
 	"strings"
@@ -122,13 +121,7 @@ func GenerateReport(tokens []*TokenData) string {
 
 // formatAmount 格式化代币数量
 func formatAmount(token *TokenData) string {
-	// 计算实际数量
-	actualAmount := token.Amount
-	if token.Decimals > 0 {
-		divisor := math.Pow10(int(token.Decimals))
-		actualAmount = token.Amount / divisor
-	}
-	return fmt.Sprintf("%.0f", actualAmount)
+	return fmt.Sprintf("%.0f", token.Amount)
 }
 
 // formatValue 格式化代币价值
