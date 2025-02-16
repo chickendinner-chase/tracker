@@ -2,76 +2,69 @@ package tracker
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"sort"
 	"strings"
-	"text/tabwriter"
 	"time"
 )
 
-// AggregateTokens 聚合代币数据
-func AggregateTokens(tokens []*TokenData) []*AggregatedToken {
-	// 按代币符号聚合
-	tokenMap := make(map[string]*AggregatedToken)
-
-	for _, token := range tokens {
-		if token.Symbol == "" {
-			continue
-		}
-
-		if agg, exists := tokenMap[token.Symbol]; exists {
-			agg.TotalAmt += token.Amount
-			agg.TotalVal += token.Value
-		} else {
-			tokenMap[token.Symbol] = &AggregatedToken{
-				Symbol:   token.Symbol,
-				TotalAmt: token.Amount,
-				TotalVal: token.Value,
-			}
-		}
-	}
-
-	// 转换为切片并按总价值排序
-	var result []*AggregatedToken
-	for _, agg := range tokenMap {
-		result = append(result, agg)
-	}
-
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].TotalVal > result[j].TotalVal
-	})
-
-	return result
+// TokenReport 代币报告数据
+type TokenReport struct {
+	Symbol    string
+	Amount    float64
+	Value     float64
+	Change    float64 // 变化率
+	Timestamp time.Time
 }
 
 // GenerateReport 生成代币持仓报告
 func GenerateReport(tokens []*TokenData) string {
+	// 按价值排序
+	sort.Slice(tokens, func(i, j int) bool {
+		return tokens[i].Value > tokens[j].Value
+	})
+
+	// 获取日志级别
+	logLevel := os.Getenv("LOG_LEVEL")
+
+	// 根据日志级别生成不同格式的报告
+	switch logLevel {
+	case "DEBUG":
+		return generateDebugReport(tokens)
+	case "WARN", "ALERT":
+		return "" // 警告和报警模式不生成报告
+	default:
+		return generateSimpleReport(tokens)
+	}
+}
+
+// generateSimpleReport 生成简单报告（默认模式）
+func generateSimpleReport(tokens []*TokenData) string {
 	var sb strings.Builder
-
-	// 添加报告头部
-	sb.WriteString("\n代币持仓报告\n")
-	sb.WriteString("生成时间: " + time.Now().Format("2006-01-02 15:04:05") + "\n")
-	sb.WriteString("----------------------------------------\n\n")
-
-	// 表头
-	sb.WriteString(fmt.Sprintf("%-6s|%-12s|%20s|%20s|%10s|\n",
-		"排名", "代币", "总持有量", "总价值 (USD)", "可信度"))
-	sb.WriteString(strings.Repeat("-", 74) + "\n")
-
-	// 直接使用传入的已排序代币列表
 	var totalValue float64
-	for i, token := range tokens {
-		// 格式化数值
-		amountStr := formatAmount(token)
-		valueStr := formatValue(token.Value)
 
-		// 确保代币符号不为空
+	// 显示前50个代币
+	maxTokens := 50
+	if len(tokens) < maxTokens {
+		maxTokens = len(tokens)
+	}
+
+	// 生成表格
+	sb.WriteString(fmt.Sprintf("\n%-4s %-16s %16s %16s %10s\n",
+		"#", "代币", "数量", "价值", "占比"))
+	sb.WriteString(strings.Repeat("-", 66) + "\n")
+
+	// 先计算总值用于计算占比
+	for _, token := range tokens[:maxTokens] {
+		totalValue += token.Value
+	}
+
+	for i, token := range tokens[:maxTokens] {
 		symbol := token.Symbol
 		if symbol == "" || symbol == "UNKNOWN" {
 			if token.Name != "" {
-				if len(token.Name) > 12 {
-					symbol = token.Name[:12]
+				if len(token.Name) > 16 {
+					symbol = token.Name[:16]
 				} else {
 					symbol = token.Name
 				}
@@ -80,85 +73,86 @@ func GenerateReport(tokens []*TokenData) string {
 			}
 		}
 
-		// 写入行数据
-		confidenceLevel := token.ConfidenceLevel
-		if confidenceLevel == "" {
-			confidenceLevel = "unknown"
-		}
+		// 计算该代币占总值的百分比
+		percentage := (token.Value / totalValue) * 100
 
-		sb.WriteString(fmt.Sprintf("%-6d|%-12s|%20s|%20s|%10s|\n",
-			i+1, symbol, amountStr, valueStr, confidenceLevel))
-
-		// 添加详细计算过程
-		sb.WriteString(fmt.Sprintf("      |%-66s|\n",
-			fmt.Sprintf("Mint: %s", token.MintAddr)))
-		sb.WriteString(fmt.Sprintf("      |%-66s|\n",
-			fmt.Sprintf("数量: %.8f", token.Amount)))
-		sb.WriteString(fmt.Sprintf("      |%-66s|\n",
-			fmt.Sprintf("价格: $%.8f", token.Price)))
-		sb.WriteString(fmt.Sprintf("      |%-66s|\n",
-			fmt.Sprintf("计算: %.8f * $%.8f = $%.6f", token.Amount, token.Price, token.Value)))
-		sb.WriteString(strings.Repeat("-", 74) + "\n")
-
-		totalValue += token.Value
+		sb.WriteString(fmt.Sprintf("%-4d %-16s %16.4f %16.2f %9.2f%%\n",
+			i+1,
+			symbol,
+			token.Amount,
+			token.Value,
+			percentage))
 	}
 
-	// 添加总计行
-	sb.WriteString(fmt.Sprintf("%-6s|%-12s|%20s|%20s|%10s|\n",
-		"总计", "-", "-", formatValue(totalValue), "-"))
-
-	// 添加报告尾部
-	sb.WriteString("3. 价格来源: Jupiter API\n")
-	sb.WriteString("4. 可信度等级说明:\n")
-	sb.WriteString("   - high: 高可信度，价格数据可靠\n")
-	sb.WriteString("   - medium: 中等可信度，价格数据相对可靠\n")
-	sb.WriteString("   - unknown: 未知可信度，价格数据来源不明\n")
-	sb.WriteString("5. 注意: 可信度为low的代币已被过滤\n")
-	sb.WriteString(fmt.Sprintf("6. 显示范围: 按价值排序的前%d名代币\n", len(tokens)))
+	sb.WriteString(strings.Repeat("-", 66) + "\n")
+	sb.WriteString(fmt.Sprintf("总值: $%.2f\n", totalValue))
 
 	return sb.String()
 }
 
-// formatAmount 格式化代币数量
-func formatAmount(token *TokenData) string {
-	return fmt.Sprintf("%.0f", token.Amount)
+// generateDebugReport 生成详细报告（调试模式）
+func generateDebugReport(tokens []*TokenData) string {
+	var sb strings.Builder
+	var totalValue float64
+
+	sb.WriteString("\n详细代币报告\n")
+	sb.WriteString("时间: " + time.Now().Format("15:04:05") + "\n")
+	sb.WriteString(strings.Repeat("-", 80) + "\n")
+
+	// 显示所有代币的详细信息
+	for i, token := range tokens {
+		sb.WriteString(fmt.Sprintf("代币 #%d: %s\n", i+1, token.Symbol))
+		sb.WriteString(fmt.Sprintf("  Mint地址: %s\n", token.MintAddr))
+		sb.WriteString(fmt.Sprintf("  数量: %.8f\n", token.Amount))
+		sb.WriteString(fmt.Sprintf("  价格: $%.8f\n", token.Price))
+		sb.WriteString(fmt.Sprintf("  价值: $%.2f\n", token.Value))
+		sb.WriteString(fmt.Sprintf("  可信度: %s\n", token.ConfidenceLevel))
+		sb.WriteString(strings.Repeat("-", 80) + "\n")
+
+		totalValue += token.Value
+	}
+
+	sb.WriteString(fmt.Sprintf("总资产价值: $%.2f\n", totalValue))
+	return sb.String()
 }
 
-// formatValue 格式化代币价值
-func formatValue(value float64) string {
-	return fmt.Sprintf("$%.0f", value)
-}
+// GenerateCSVReport 生成CSV格式的报告
+func GenerateCSVReport(tokens []*TokenData) string {
+	var sb strings.Builder
 
-// GenerateTable 生成报告表格
-func GenerateTable() {
-	// 创建表格写入器
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', tabwriter.Debug)
+	// 复制tokens切片以避免修改原始数据
+	sortedTokens := make([]*TokenData, len(tokens))
+	copy(sortedTokens, tokens)
 
-	// 写入表头
-	fmt.Fprintln(w, "排名\t代币\t总持有量\t总价值 (USD)\t")
-	fmt.Fprintln(w, "----\t----\t--------\t------------\t")
+	// 按价值排序
+	sort.Slice(sortedTokens, func(i, j int) bool {
+		return sortedTokens[i].Value > sortedTokens[j].Value
+	})
 
-	// 获取聚合数据
-	aggregated := AggregateTokens(nil) // 这里应该传入实际的tokens数据
+	// 写入CSV头部（如果文件为空的话）
+	if sb.Len() == 0 {
+		sb.WriteString("代币符号,数量,价值(USD),时间戳\n")
+	}
 
 	// 写入数据行
-	for i, token := range aggregated {
-		fmt.Fprintf(w, "%d\t%s\t%.0f\t$%.0f\t\n",
-			i+1, token.Symbol, token.TotalAmt, token.TotalVal)
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	for _, token := range sortedTokens {
+		symbol := token.Symbol
+		if symbol == "" || symbol == "UNKNOWN" {
+			if token.Name != "" {
+				symbol = token.Name
+			} else {
+				symbol = "Unknown"
+			}
+		}
+
+		// 写入CSV行
+		sb.WriteString(fmt.Sprintf("%s,%.8f,%.2f,%s\n",
+			symbol,
+			token.Amount,
+			token.Value,
+			timestamp))
 	}
 
-	// 计算总价值
-	var totalValue float64
-	for _, token := range aggregated {
-		totalValue += token.TotalVal
-	}
-
-	// 写入总计
-	fmt.Fprintln(w, "----\t----\t--------\t------------\t")
-	fmt.Fprintf(w, "总计\t-\t-\t$%.0f\t\n", totalValue)
-
-	// 刷新输出
-	if err := w.Flush(); err != nil {
-		log.Printf("生成表格时发生错误: %v", err)
-	}
+	return sb.String()
 }

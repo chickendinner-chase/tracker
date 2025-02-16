@@ -438,7 +438,7 @@ func (s *JupiterPriceService) GetTokenPrices(mintAddrs []string) (map[string]*To
 	return prices, nil
 }
 
-func UpdateTokenPrices(tokens map[string][]*TokenData) ([]*TokenData, error) {
+func UpdateTokenPrices(tokens map[string][]*TokenData, monitor *TokenMonitor) ([]*TokenData, error) {
 	log.Println("\n开始更新所有代币价格...")
 
 	// 收集所有唯一的mint地址
@@ -530,6 +530,11 @@ func UpdateTokenPrices(tokens map[string][]*TokenData) ([]*TokenData, error) {
 	log.Printf("- 待处理: %d个", len(remainingMints))
 	log.Printf("- 当前总价值: %s", formatPrice(totalValue))
 	log.Println("----------------------------------------")
+
+	// 更新监控器的代币列表
+	if monitor != nil {
+		monitor.UpdateTokens(validTokens)
+	}
 
 	return validTokens, nil
 }

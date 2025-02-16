@@ -400,20 +400,11 @@ func FetchMultipleWalletsTokens(ctx context.Context, walletAddrs []string, c *cl
 			// 添加随机延迟，避免同时发起请求
 			time.Sleep(time.Duration(500+rand.Intn(1000)) * time.Millisecond)
 
-			select {
-			case <-ctx.Done():
-				resultChan <- walletResult{
-					address: walletAddr,
-					err:     ctx.Err(),
-				}
-				return
-			default:
-				tokens, err := FetchWalletTokens(walletAddr, c, cfg)
-				resultChan <- walletResult{
-					address: walletAddr,
-					tokens:  tokens,
-					err:     err,
-				}
+			tokens, err := FetchWalletTokens(walletAddr, c, cfg)
+			resultChan <- walletResult{
+				address: walletAddr,
+				tokens:  tokens,
+				err:     err,
 			}
 		}(addr)
 	}
