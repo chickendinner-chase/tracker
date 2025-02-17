@@ -441,6 +441,17 @@ func (s *JupiterPriceService) GetTokenPrices(mintAddrs []string) (map[string]*To
 func UpdateTokenPrices(tokens map[string][]*TokenData, monitor *TokenMonitor) ([]*TokenData, error) {
 	log.Println("\n开始更新所有代币价格...")
 
+	// 获取上一次的价值数据（如果monitor存在）
+	var lastTokenValues map[string]float64
+	var lastUpdateTime time.Time
+	if monitor != nil {
+		lastTokenValues = make(map[string]float64)
+		for _, token := range monitor.tokens {
+			lastTokenValues[token.MintAddr] = token.Value
+		}
+		lastUpdateTime = monitor.lastUpdateTime
+	}
+
 	// 收集所有唯一的mint地址
 	mintMap := make(map[string]*TokenData)
 	validTokens := make([]*TokenData, 0)
@@ -478,6 +489,7 @@ func UpdateTokenPrices(tokens map[string][]*TokenData, monitor *TokenMonitor) ([
 	var totalValue float64
 	var updatedCount int
 	remainingMints := make([]string, 0)
+	currentTime := time.Now()
 
 	// 处理每个mint的代币
 	for mintAddr, token := range mintMap {
@@ -501,9 +513,19 @@ func UpdateTokenPrices(tokens map[string][]*TokenData, monitor *TokenMonitor) ([
 			token.Value = token.Amount * price.Price
 			token.ConfidenceLevel = price.ConfidenceLevel
 
+			// 计算变化率
+			if lastValue, ok := lastTokenValues[mintAddr]; ok && !lastUpdateTime.IsZero() {
+				timeDiff := currentTime.Sub(lastUpdateTime).Seconds()
+				if timeDiff > 0 {
+					valueChange := ((token.Value - lastValue) / lastValue) * 100
+					token.Change = valueChange / timeDiff
+				}
+			}
+
 			log.Printf("3. 价值计算:")
 			log.Printf("   - 计算公式: %.8f * $%.8f", token.Amount, price.Price)
 			log.Printf("   - 计算结果: %s", formatPrice(token.Value))
+			log.Printf("   - 变化率: %.2f%%/s", token.Change)
 
 			validTokens = append(validTokens, token)
 			totalValue += token.Value
@@ -534,6 +556,7 @@ func UpdateTokenPrices(tokens map[string][]*TokenData, monitor *TokenMonitor) ([
 	// 更新监控器的代币列表
 	if monitor != nil {
 		monitor.UpdateTokens(validTokens)
+		monitor.lastUpdateTime = currentTime
 	}
 
 	return validTokens, nil

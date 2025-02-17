@@ -12,6 +12,7 @@ type TokenData struct {
 	Symbol          string
 	Amount          float64
 	Value           float64
+	Change          float64 // 价值变化率 (%/s)
 	Decimals        uint8
 	Name            string
 	Raw             *token.TokenAccount

@@ -51,7 +51,7 @@ func generateSimpleReport(tokens []*TokenData) string {
 
 	// 生成表格
 	sb.WriteString(fmt.Sprintf("\n%-4s %-16s %16s %16s %10s\n",
-		"#", "代币", "数量", "价值", "占比"))
+		"#", "代币", "价格", "价值", "占比"))
 	sb.WriteString(strings.Repeat("-", 66) + "\n")
 
 	// 先计算总值用于计算占比
@@ -79,13 +79,14 @@ func generateSimpleReport(tokens []*TokenData) string {
 		sb.WriteString(fmt.Sprintf("%-4d %-16s %16.4f %16.2f %9.2f%%\n",
 			i+1,
 			symbol,
-			token.Amount,
+			token.Price,
 			token.Value,
 			percentage))
 	}
 
-	sb.WriteString(strings.Repeat("-", 66) + "\n")
-	sb.WriteString(fmt.Sprintf("总值: $%.2f\n", totalValue))
+	sb.WriteString(fmt.Sprintf("总值: $%.2f [%s]\n",
+		totalValue,
+		time.Now().Format("15:04:05")))
 
 	return sb.String()
 }
@@ -103,8 +104,8 @@ func generateDebugReport(tokens []*TokenData) string {
 	for i, token := range tokens {
 		sb.WriteString(fmt.Sprintf("代币 #%d: %s\n", i+1, token.Symbol))
 		sb.WriteString(fmt.Sprintf("  Mint地址: %s\n", token.MintAddr))
-		sb.WriteString(fmt.Sprintf("  数量: %.8f\n", token.Amount))
 		sb.WriteString(fmt.Sprintf("  价格: $%.8f\n", token.Price))
+		sb.WriteString(fmt.Sprintf("  数量: %.8f\n", token.Amount))
 		sb.WriteString(fmt.Sprintf("  价值: $%.2f\n", token.Value))
 		sb.WriteString(fmt.Sprintf("  可信度: %s\n", token.ConfidenceLevel))
 		sb.WriteString(strings.Repeat("-", 80) + "\n")
@@ -131,26 +132,21 @@ func GenerateCSVReport(tokens []*TokenData) string {
 
 	// 写入CSV头部（如果文件为空的话）
 	if sb.Len() == 0 {
-		sb.WriteString("代币符号,数量,价值(USD),时间戳\n")
+		sb.WriteString("Mint地址,价格(USD),价值(USD),变化率(%/s),时间戳\n")
 	}
 
 	// 写入数据行
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	for _, token := range sortedTokens {
-		symbol := token.Symbol
-		if symbol == "" || symbol == "UNKNOWN" {
-			if token.Name != "" {
-				symbol = token.Name
-			} else {
-				symbol = "Unknown"
-			}
-		}
+		// 计算变化率 (使用token.Change，这个值需要在更新价值时计算)
+		changeRate := token.Change
 
 		// 写入CSV行
-		sb.WriteString(fmt.Sprintf("%s,%.8f,%.2f,%s\n",
-			symbol,
-			token.Amount,
+		sb.WriteString(fmt.Sprintf("%s,%.8f,%.2f,%.2f,%s\n",
+			token.MintAddr,
+			token.Price,
 			token.Value,
+			changeRate,
 			timestamp))
 	}
 
