@@ -61,7 +61,7 @@ func (c *TokenMetadataCache) Get(mint string) (*TokenMetadata, bool) {
 		return nil, false
 	}
 	// 检查缓存是否过期（1分钟）
-	if time.Since(metadata.UpdatedAt) > 1*time.Minute {
+	if time.Since(metadata.UpdatedAt) > 2*time.Minute {
 		return nil, false
 	}
 	return metadata, true

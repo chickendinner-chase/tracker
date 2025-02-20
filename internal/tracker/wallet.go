@@ -375,7 +375,7 @@ func FetchMultipleWalletsTokens(ctx context.Context, walletAddrs []string, c *cl
 	resultChan := make(chan walletResult, len(walletAddrs))
 
 	// 创建信号量来限制并发请求数
-	const maxConcurrent = 2
+	const maxConcurrent = 3
 	sem := make(chan struct{}, maxConcurrent)
 
 	for _, addr := range walletAddrs {

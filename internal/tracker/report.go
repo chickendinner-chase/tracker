@@ -132,23 +132,36 @@ func GenerateCSVReport(tokens []*TokenData) string {
 
 	// 写入CSV头部（如果文件为空的话）
 	if sb.Len() == 0 {
-		sb.WriteString("Mint地址,价格(USD),价值(USD),变化率(%/s),时间戳\n")
+		sb.WriteString("Mint地址,价格(USD),价值(USD),变化额(USD),变化率(%),时间戳\n")
 	}
 
 	// 写入数据行
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	for _, token := range sortedTokens {
-		// 计算变化率 (使用token.Change，这个值需要在更新价值时计算)
-		changeRate := token.Change
+		// 获取上一次记录的价值（如果有的话）
+		var changeAmount, changeRate float64
+		if lastValue, exists := lastTokenValues[token.MintAddr]; exists {
+			changeAmount = token.Value - lastValue
+			if lastValue > 0 {
+				changeRate = (changeAmount / lastValue) * 100
+			}
+		}
+
+		// 更新最后一次记录的价值
+		lastTokenValues[token.MintAddr] = token.Value
 
 		// 写入CSV行
-		sb.WriteString(fmt.Sprintf("%s,%.8f,%.2f,%.2f,%s\n",
+		sb.WriteString(fmt.Sprintf("%s,%.8f,%.2f,%.2f,%.2f,%s\n",
 			token.MintAddr,
 			token.Price,
 			token.Value,
+			changeAmount,
 			changeRate,
 			timestamp))
 	}
 
 	return sb.String()
 }
+
+// 用于存储每个代币的上一次价值
+var lastTokenValues = make(map[string]float64)
