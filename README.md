@@ -87,11 +87,10 @@ JTO: $567.8 (+0.01%/s)
 # 复制并配置环境变量
 cp .env.example .env
 
-# 编辑 .env 文件
-HELIUS_RPC_ENDPOINT=YOUR_ENDPOINT
-HELIUS_API_KEY=YOUR_API_KEY
-UPDATE_INTERVAL=20  # 自定义更新间隔（秒）
-ALERT_THRESHOLD=5   # 报警阈值（百分比）
+# 复制并配置钱包文件
+cp wallets.example.yaml wallets.yaml
+
+# 编辑配置文件，填入你的API密钥和钱包地址即可运行
 ```
 
 ### 2. 运行程序
