@@ -1,24 +1,8 @@
-# 环境配置文件
+# 配置文件（排除示例文件）
 .env
-.env.*
-
-# 敏感配置文件
+!.env.example
 config/wallets.yaml
-
-# 日志文件
-*.log
-
-# IDE 相关
-.idea/
-.vscode/
-
-# 操作系统相关
-.DS_Store
-Thumbs.db
-
-# 配置文件
-.env
-config/wallets.yaml
+!config/wallets.example.yaml
 wallet-tracker.log
 
 # 编译输出
