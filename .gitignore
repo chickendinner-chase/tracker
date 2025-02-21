@@ -14,4 +14,27 @@ config/wallets.yaml
 
 # 操作系统相关
 .DS_Store
-Thumbs.db 
+Thumbs.db
+
+# 配置文件
+.env
+config/wallets.yaml
+wallet-tracker.log
+
+# 编译输出
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 测试文件
+*.test
+
+# 输出文件
+*.out
+
+# IDE 文件
+.idea/
+.vscode/
+*.swp 

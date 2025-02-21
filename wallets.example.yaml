@@ -1,0 +1,7 @@
+wallets:
+  - address: "your-wallet-address-1"
+    label: "wallet-1"
+  - address: "your-wallet-address-2"
+    label: "wallet-2"
+  - address: "your-wallet-address-3"
+    label: "wallet-3" 
