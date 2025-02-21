@@ -29,6 +29,7 @@ type TokenMonitor struct {
 	lastUpdateTime time.Time          // 上次更新时间
 	priceHistory   *ring.Ring         // 价格历史环形缓冲区
 	alertThreshold float64            // 报警阈值（百分比）
+	lastAlertTimes map[string]map[time.Duration]time.Time // 新增：记录每个代币每个窗口的最后报警时间
 }
 
 // NewTokenMonitor 创建新的代币监控器
@@ -81,8 +82,11 @@ func NewTokenMonitor(interval time.Duration, onUpdate func([]*TokenData)) *Token
 		lastUpdateTime: time.Time{},
 		priceHistory:   priceHistory,
 		alertThreshold: 5.0, // 5%的报警阈值
+		lastAlertTimes: make(map[string]map[time.Duration]time.Time),  // 初始化
 	}
 }
+
+
 
 // UpdateTokens 更新监控的代币列表
 func (m *TokenMonitor) UpdateTokens(tokens []*TokenData) {
@@ -118,105 +122,106 @@ func (m *TokenMonitor) Stop() {
 
 // checkPriceAlert 检查价格变化并生成报警
 func (m *TokenMonitor) checkPriceAlert(currentSnapshot *PriceSnapshot) {
-	timeWindows := []time.Duration{
-		30 * time.Second, // 短期
-		1 * time.Minute,  // 中期
-		5 * time.Minute,  // 长期
-	}
+    timeWindows := []time.Duration{
+        30 * time.Second, // 短期
+        1 * time.Minute,  // 中期
+        5 * time.Minute,  // 长期
+    }
 
-	// 遍历每个代币
-	for mintAddr, currentToken := range currentSnapshot.TokenData {
-		if currentToken.Value <= 0 {
-			continue
-		}
+    // 遍历每个代币
+    for mintAddr, currentToken := range currentSnapshot.TokenData {
+        if currentToken.Value <= 0 {
+            continue
+        }
 
-		log.Printf("检查代币 %s (%s) 的价格变化, 当前价值: $%.2f",
-			currentToken.Symbol, mintAddr, currentToken.Value)
+        log.Printf("检查代币 %s (%s) 的价格变化, 当前价值: $%.2f",
+            currentToken.Symbol, mintAddr, currentToken.Value)
 
-		// 对每个时间窗口检查价格变化
-		for _, window := range timeWindows {
-			// 从当前位置开始遍历整个环形缓冲区
-			r := m.priceHistory
-			var oldSnapshot *PriceSnapshot
-			found := false
+        // 初始化该代币的报警时间记录（如果不存在）
+        if _, exists := m.lastAlertTimes[mintAddr]; !exists {
+            m.lastAlertTimes[mintAddr] = make(map[time.Duration]time.Time)
+        }
 
-			// 遍历环形缓冲区查找合适的历史快照
-			for i := 0; i < m.priceHistory.Len(); i++ {
-				if r.Value != nil {
-					snapshot := r.Value.(*PriceSnapshot)
-					timeDiff := currentSnapshot.Timestamp.Sub(snapshot.Timestamp)
+        // 对每个时间窗口检查价格变化
+        for _, window := range timeWindows {
+            // 从环形缓冲区查找历史快照
+            r := m.priceHistory
+            var oldSnapshot *PriceSnapshot
+            found := false
 
-					// 放宽时间窗口匹配条件
-					if timeDiff >= window && timeDiff <= window+(5*time.Second) {
-						oldSnapshot = snapshot
-						found = true
-						break
-					}
-				}
-				r = r.Next()
-			}
+            for i := 0; i < m.priceHistory.Len(); i++ {
+                if r.Value != nil {
+                    snapshot := r.Value.(*PriceSnapshot)
+                    timeDiff := currentSnapshot.Timestamp.Sub(snapshot.Timestamp)
+                    if timeDiff >= window && timeDiff <= window+(5*time.Second) {
+                        oldSnapshot = snapshot
+                        found = true
+                        break
+                    }
+                }
+                r = r.Next()
+            }
 
-			if found && oldSnapshot != nil {
-				// 检查历史快照中是否存在该代币
-				if oldToken, exists := oldSnapshot.TokenData[mintAddr]; exists && oldToken.Value > 0 {
-					// 计算价格变化
-					priceChange := ((currentToken.Price - oldToken.Price) / oldToken.Price) * 100
-					// 计算价值变化（价格 * 数量的变化）
-					valueChange := ((currentToken.Value - oldToken.Value) / oldToken.Value) * 100
+            if found && oldSnapshot != nil {
+                if oldToken, exists := oldSnapshot.TokenData[mintAddr]; exists && oldToken.Value > 0 {
+                    // 计算价格变化
+                    priceChange := ((currentToken.Price - oldToken.Price) / oldToken.Price) * 100
+                    valueChange := ((currentToken.Value - oldToken.Value) / oldToken.Value) * 100
 
-					// 记录显著的价格变化
-					if abs(priceChange) > 1.0 || abs(valueChange) > 1.0 {
-						log.Printf("代币 %s 在 %s 内的变化: 价格变化率: %.2f%%, 价值变化率: %.2f%%",
-							currentToken.Symbol, window, priceChange, valueChange)
-					}
+                    // 记录显著变化
+                    if abs(priceChange) > 1.0 || abs(valueChange) > 1.0 {
+                        log.Printf("代币 %s 在 %s 内的变化: 价格变化率: %.2f%%, 价值变化率: %.2f%%",
+                            currentToken.Symbol, window, priceChange, valueChange)
+                    }
 
-					// 在检查价格变化时添加详细日志
-					log.Printf("检查价格变化 - 代币: %s, 窗口: %s, 当前价格: $%.8f, 历史价格: $%.8f, 变化率: %.2f%%, 阈值: %.2f%%",
-						currentToken.Symbol,
-						window.String(),
-						currentToken.Price,
-						oldToken.Price,
-						priceChange,
-						m.alertThreshold)
+                    // 检查上次报警时间
+                    lastAlertTime, hasAlerted := m.lastAlertTimes[mintAddr][window]
+                    timeSinceLastAlert := currentSnapshot.Timestamp.Sub(lastAlertTime)
 
-					// 如果价格变化超过阈值，生成报警
-					if abs(priceChange) >= m.alertThreshold {
-						alertMsg := fmt.Sprintf("⚠️ 代币价格报警 - %s (%s)\n"+
-							"时间窗口: %s\n"+
-							"价格变化: %.2f%%\n"+
-							"当前价格: $%.8f\n"+
-							"历史价格: $%.8f\n"+
-							"当前价值: $%.2f",
-							currentToken.Symbol,
-							mintAddr,
-							window.String(),
-							priceChange,
-							currentToken.Price,
-							oldToken.Price,
-							currentToken.Value)
+                    // 只有当超过阈值且距离上次报警超过时间窗口时才触发报警
+                    if abs(priceChange) >= m.alertThreshold && (!hasAlerted || timeSinceLastAlert >= window) {
+                        alertMsg := fmt.Sprintf("⚠️ 代币价格报警 - %s (%s)\n"+
+                            "时间窗口: %s\n"+
+                            "价格变化: %.2f%%\n"+
+                            "当前价格: $%.8f\n"+
+                            "历史价格: $%.8f\n"+
+                            "当前价值: $%.2f",
+                            currentToken.Symbol,
+                            mintAddr,
+                            window.String(),
+                            priceChange,
+                            currentToken.Price,
+                            oldToken.Price,
+                            currentToken.Value)
 
-						// 立即写入报警日志并打印
-						m.writeAlertLog(alertMsg)
-						log.Print(alertMsg)
-					}
+                        // 写入报警日志并打印
+                        m.writeAlertLog(alertMsg)
+                        log.Print(alertMsg)
 
-					// 如果价值变化超过阈值，生成报警
-					if abs(valueChange) >= m.alertThreshold {
-						alertMsg := fmt.Sprintf("代币价值报警 - %s (%s) %s内价值变化率: %.2f%% (从 $%.2f 到 $%.2f)",
-							currentToken.Symbol,
-							mintAddr,
-							window.String(),
-							valueChange,
-							oldToken.Value,
-							currentToken.Value)
+                        // 更新该代币该窗口的最后报警时间
+                        m.lastAlertTimes[mintAddr][window] = currentSnapshot.Timestamp
+                    }
 
-						m.writeAlertLog(alertMsg)
-						log.Print("⚠️ " + alertMsg)
-					}
-				}
-			}
-		}
-	}
+                    // 检查价值变化
+                    if abs(valueChange) >= m.alertThreshold && (!hasAlerted || timeSinceLastAlert >= window) {
+                        alertMsg := fmt.Sprintf("代币价值报警 - %s (%s) %s内价值变化率: %.2f%% (从 $%.2f 到 $%.2f)",
+                            currentToken.Symbol,
+                            mintAddr,
+                            window.String(),
+                            valueChange,
+                            oldToken.Value,
+                            currentToken.Value)
+
+                        m.writeAlertLog(alertMsg)
+                        log.Print("⚠️ " + alertMsg)
+
+                        // 更新该代币该窗口的最后报警时间
+                        m.lastAlertTimes[mintAddr][window] = currentSnapshot.Timestamp
+                    }
+                }
+            }
+        }
+    }
 }
 
 // abs 返回浮点数的绝对值
